@@ -15,6 +15,7 @@ SemesterPilot answers that question:
 - **7-day workload heat strip** that shows which days are about to get heavy.
 - **Explain my plan.** Every item shows its score breakdown and why it got time today (or didn't).
 - **Push plan to Notion.** Creates a `SemesterPilot Plan - <date>` page from markdown and links to it. If your assignments have a *Planned Date* property, it also stamps today's date on the scheduled items.
+- **AI study coach (optional, OpenAI).** One click gives a short briefing for the day, a concrete first step for every block, and a "watch out" note for the week. The steps show up inside the schedule and are included in the Notion plan page.
 - **Demo mode.** Runs with zero setup on 12 sample assignments across 4 courses.
 
 ### The priority engine (`lib/scoring.ts`)
@@ -36,6 +37,10 @@ Scheduling (`buildPlan`) runs in rank order:
 2. Everything else gets a **fair share**: remaining work spread evenly until the due date, at least 15 min.
 3. Leftover time goes to finishing the top-ranked items.
 4. **No course can take more than 60% of the day.**
+
+### AI study coach (`lib/coach.ts`)
+
+The ranking and schedule are always computed by the deterministic engine above. The model never reorders or adds items, it only explains and coaches. `POST /api/coach` rebuilds the plan on the server and sends OpenAI's Responses API a compact summary: titles, course names, minutes, days to due, and the planner's reasons. It uses **Structured Outputs** (`json_schema`, `strict: true`), so the UI always gets `{ headline, briefing, steps[], watchOut }`. Steps whose IDs don't match a scheduled block are dropped. The key stays on the server. Without `OPENAI_API_KEY`, the card explains how to enable it and everything else works as before.
 
 ## 2. How I used Devin Chat
 
@@ -128,6 +133,10 @@ The yellow **"Demo data"** badge confirms mock mode. Demo due dates are relative
 
 To force demo data while a token is set, use `USE_MOCK=true`.
 
+### AI study coach (optional)
+
+Add `OPENAI_API_KEY=sk-...` to `.env.local` (and optionally `OPENAI_MODEL`, default `gpt-6-luna`), restart, and click **Generate** on the *AI study coach* card. It works in both demo and Notion mode.
+
 ### Tests and checks
 
 ```bash
@@ -139,7 +148,7 @@ npm run build
 
 ### Deploy on Vercel
 
-Import the repo and add `NOTION_API_KEY` (plus any optional variables) under Project → Settings → Environment Variables. Without a key, the deployment runs in demo mode.
+Import the repo and add `NOTION_API_KEY` and/or `OPENAI_API_KEY` (plus any optional variables) under Project → Settings → Environment Variables. Without a key, the deployment runs in demo mode.
 
 ## 5. Screenshots
 
@@ -158,16 +167,19 @@ Import the repo and add `NOTION_API_KEY` (plus any optional variables) under Pro
 - [ ] Per-course caps and custom weights in the UI
 - [ ] Exam mode: ramp up time for a selected exam over N days
 - [ ] Daily scheduled push via Vercel Cron
+- [ ] AI effort estimates for assignments with no estimate (suggest, then write back to Notion on approval)
 
 ## Project structure
 
 ```
 app/page.tsx             server component: loads data (mock or Notion)
 app/api/push/route.ts    POST: build plan, write it to Notion
+app/api/coach/route.ts   POST: AI study coach (OpenAI Responses API)
 components/Dashboard.tsx client UI (slider, blocks, heat strip, explain)
 lib/scoring.ts           pure priority engine + planner (tested)
 lib/schema.ts            pure property auto-mapping (tested)
 lib/notion.ts            Notion client, discovery, read, write-back
+lib/coach.ts             OpenAI structured-output coach
 notion.config.ts         overrides for any Student OS variation
 data/sample.json         demo data
 ```
