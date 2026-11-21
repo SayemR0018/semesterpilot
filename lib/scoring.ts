@@ -6,6 +6,8 @@ export const MAX_COURSE_SHARE = 0.6;
 export const MAX_BLOCK_MINUTES = 60;
 export const MIN_BLOCK_MINUTES = 15;
 export const BREAK_MINUTES = 10;
+/** Items due within this many days (or overdue) are scheduled before anything else. */
+export const CRUNCH_DAYS = 1;
 
 const DONE_STATUSES = ["done", "complete", "completed", "submitted", "finished", "graded", "archived"];
 
@@ -161,71 +163,71 @@ function clock(totalMinutes: number): string {
 
 export type PlanOptions = { startTime?: string; maxCourseShare?: number };
 
+/** Minutes that should happen today so the work is spread evenly until the due date. */
+export function fairShareToday(a: Pick<ScoredAssignment, "daysToDue" | "remainingMinutes">): number {
+  if (a.daysToDue !== null && a.daysToDue <= 0) return a.remainingMinutes;
+  const daysLeft = a.daysToDue === null ? 7 : a.daysToDue;
+  return Math.min(a.remainingMinutes, Math.max(MIN_BLOCK_MINUTES, Math.ceil(a.remainingMinutes / daysLeft / 5) * 5));
+}
+
 /**
- * Greedily fill the available time in rank order, capping any single course at
- * maxCourseShare of the day and splitting work into <= 60 min blocks with breaks.
+ * Passes in rank order: (1) items due within CRUNCH_DAYS (or overdue) get their fair share first,
+ * (2) everything else gets its fair share (work spread evenly until the due date),
+ * (3) leftover time finishes top items. A single course never exceeds
+ * maxCourseShare of the day. Work is split into <= 60 min blocks with short breaks.
  */
 export function buildPlan(ranked: ScoredAssignment[], availableMinutes: number, opts: PlanOptions = {}): Plan {
-  const cap = Math.floor(availableMinutes * (opts.maxCourseShare ?? MAX_COURSE_SHARE));
-  const [h, m] = (opts.startTime ?? "16:00").split(":").map(Number);
-  let cursor = h * 60 + m;
+  const share = opts.maxCourseShare ?? MAX_COURSE_SHARE;
+  const cap = Math.floor(availableMinutes * share);
   let left = availableMinutes;
   const courseMinutes: Record<string, number> = {};
-  const blocks: PlanBlock[] = [];
-  const decisions: PlanDecision[] = [];
+  const alloc = new Map<string, number>();
+  const hitCap = new Set<string>();
 
-  ranked.forEach((a, i) => {
-    const used = courseMinutes[a.course] ?? 0;
-    const courseLeft = cap - used;
-    let alloc = Math.min(a.remainingMinutes, left, courseLeft);
+  const give = (a: ScoredAssignment, want: number) => {
+    const have = alloc.get(a.id) ?? 0;
+    const courseLeft = cap - (courseMinutes[a.course] ?? 0);
+    const room = Math.min(want, left, courseLeft);
+    if (courseLeft < want && courseLeft < left) hitCap.add(a.id);
+    const fits = room >= MIN_BLOCK_MINUTES || (room > 0 && room === want);
+    if (!fits) return;
+    alloc.set(a.id, have + room);
+    courseMinutes[a.course] = (courseMinutes[a.course] ?? 0) + room;
+    left -= room;
+  };
+  const isCrunch = (a: ScoredAssignment) => a.daysToDue !== null && a.daysToDue <= CRUNCH_DAYS;
+  for (const a of ranked.filter(isCrunch)) give(a, fairShareToday(a));
+  for (const a of ranked.filter((x) => !isCrunch(x))) give(a, fairShareToday(a));
+  for (const a of ranked) give(a, a.remainingMinutes - (alloc.get(a.id) ?? 0));
+
+  const [h, m] = (opts.startTime ?? "16:00").split(":").map(Number);
+  let cursor = h * 60 + m;
+  const blocks: PlanBlock[] = [];
+  const decisions: PlanDecision[] = ranked.map((a, i) => {
+    const got = alloc.get(a.id) ?? 0;
+    const fair = fairShareToday(a);
     let reason: string;
-    if (left < MIN_BLOCK_MINUTES) {
-      alloc = 0;
-      reason = "No study time left today";
-    } else if (courseLeft < MIN_BLOCK_MINUTES) {
-      alloc = 0;
-      reason = `${a.course} already hit the ${Math.round((opts.maxCourseShare ?? MAX_COURSE_SHARE) * 100)}% daily cap (${used} of ${cap} min)`;
-    } else if (alloc < MIN_BLOCK_MINUTES && alloc < a.remainingMinutes) {
-      alloc = 0;
-      reason = `Less than ${MIN_BLOCK_MINUTES} min would fit; deferred`;
-    } else if (alloc < a.remainingMinutes) {
-      reason = `Ranked #${i + 1}; got ${alloc} of ${a.remainingMinutes} min (${alloc === courseLeft ? "course cap" : "out of time"})`;
+    if (got === 0) {
+      reason = hitCap.has(a.id)
+        ? `${a.course} already hit the ${Math.round(share * 100)}% daily cap (${cap} min)`
+        : "No study time left today; higher-ranked work comes first";
+    } else if (got >= a.remainingMinutes) {
+      reason = `Fully scheduled (${got} min)${a.daysToDue !== null && a.daysToDue <= CRUNCH_DAYS ? "; deadline within a day, so it goes first" : ""}`;
     } else {
-      reason = `Ranked #${i + 1}; fully scheduled`;
+      reason = `${got} of ${a.remainingMinutes} min today${got >= fair ? ` (on pace: ~${fair} min/day finishes it by the due date)` : hitCap.has(a.id) ? " (course cap reached)" : " (ran out of time)"}`;
     }
-    if (alloc > 0) {
-      const parts = Math.ceil(alloc / MAX_BLOCK_MINUTES);
-      let rest = alloc;
+    if (got > 0) {
+      const parts = Math.ceil(got / MAX_BLOCK_MINUTES);
+      let rest = got;
       for (let p = 1; p <= parts; p++) {
         const minutes = Math.min(MAX_BLOCK_MINUTES, rest);
         if (blocks.length) cursor += BREAK_MINUTES;
-        blocks.push({
-          assignmentId: a.id,
-          title: a.title,
-          course: a.course,
-          minutes,
-          start: clock(cursor),
-          end: clock(cursor + minutes),
-          part: p,
-          parts,
-        });
+        blocks.push({ assignmentId: a.id, title: a.title, course: a.course, minutes, start: clock(cursor), end: clock(cursor + minutes), part: p, parts });
         cursor += minutes;
         rest -= minutes;
       }
-      left -= alloc;
-      courseMinutes[a.course] = used + alloc;
     }
-    decisions.push({
-      assignmentId: a.id,
-      title: a.title,
-      course: a.course,
-      rank: i + 1,
-      score: a.score,
-      allocatedMinutes: alloc,
-      remainingMinutes: a.remainingMinutes,
-      reason,
-      factors: a.factors,
-    });
+    return { assignmentId: a.id, title: a.title, course: a.course, rank: i + 1, score: a.score, allocatedMinutes: got, remainingMinutes: a.remainingMinutes, reason, factors: a.factors };
   });
 
   return { blocks, decisions, totalMinutes: availableMinutes - left, availableMinutes, courseMinutes, courseCapMinutes: cap };

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPlan,
   daysBetween,
+  fairShareToday,
   DEFAULT_EFFORT_MINUTES,
   isDone,
   overduePenalty,
@@ -149,5 +150,25 @@ describe("weeklyLoad", () => {
     expect(load).toHaveLength(7);
     expect(load[0]).toEqual({ date: TODAY, minutes: 90, count: 2 });
     expect(load[2].minutes).toBe(60);
+  });
+});
+
+describe("fairShareToday", () => {
+  it("schedules everything for due-today work and spreads the rest until the due date", () => {
+    expect(fairShareToday({ daysToDue: 0, remainingMinutes: 200 })).toBe(200);
+    expect(fairShareToday({ daysToDue: -3, remainingMinutes: 45 })).toBe(45);
+    expect(fairShareToday({ daysToDue: 4, remainingMinutes: 240 })).toBe(60);
+    expect(fairShareToday({ daysToDue: 10, remainingMinutes: 30 })).toBe(15);
+  });
+  it("lets a due-today item into the plan ahead of a bigger far-away project", () => {
+    const ranked = rankAssignments(
+      [
+        make({ id: "big", title: "Big", course: "Bio", effortMinutes: 300, weight: 30, due: "2026-11-24" }),
+        make({ id: "today", title: "Today", course: "Hist", effortMinutes: 45, weight: 1, due: TODAY }),
+      ],
+      TODAY,
+    );
+    const plan = buildPlan(ranked, 90);
+    expect(plan.decisions.find((d) => d.assignmentId === "today")?.allocatedMinutes).toBe(45);
   });
 });

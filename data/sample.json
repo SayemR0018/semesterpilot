@@ -1,0 +1,23 @@
+{
+  "_comment": "Demo Student OS data. dueOffsetDays is relative to today so the demo never goes stale.",
+  "courses": [
+    { "id": "c-cs", "name": "CS 241 Data Structures" },
+    { "id": "c-calc", "name": "MATH 221 Calculus II" },
+    { "id": "c-bio", "name": "BIO 110 Cell Biology" },
+    { "id": "c-hist", "name": "HIST 205 Modern Europe" }
+  ],
+  "assignments": [
+    { "id": "a1", "title": "Problem Set 7: Series convergence", "courseId": "c-calc", "dueOffsetDays": -1, "status": "In progress", "effortMinutes": 90, "effortDoneMinutes": 30, "weight": 4, "priority": "High" },
+    { "id": "a2", "title": "Lab 5: AVL tree implementation", "courseId": "c-cs", "dueOffsetDays": 1, "status": "In progress", "effortMinutes": 180, "effortDoneMinutes": 60, "weight": 8, "priority": "High" },
+    { "id": "a3", "title": "Reading response: Congress of Vienna", "courseId": "c-hist", "dueOffsetDays": 0, "status": "Not started", "effortMinutes": 45, "weight": 2, "priority": "Medium" },
+    { "id": "a4", "title": "Midterm 2 study guide", "courseId": "c-bio", "dueOffsetDays": 4, "status": "Not started", "effortMinutes": 240, "weight": 20, "priority": "High" },
+    { "id": "a5", "title": "Quiz 6 prep: Integration by parts", "courseId": "c-calc", "dueOffsetDays": 2, "status": "Not started", "effortMinutes": 60, "weight": 3, "priority": "Medium" },
+    { "id": "a6", "title": "Project milestone 2: Hash map benchmark", "courseId": "c-cs", "dueOffsetDays": 6, "status": "Not started", "effortMinutes": 300, "weight": 15, "priority": "High" },
+    { "id": "a7", "title": "Lab report: Osmosis experiment", "courseId": "c-bio", "dueOffsetDays": 3, "status": "In progress", "effortMinutes": 150, "effortDoneMinutes": 45, "weight": 6, "priority": "Medium" },
+    { "id": "a8", "title": "Essay outline: Revolutions of 1848", "courseId": "c-hist", "dueOffsetDays": 5, "status": "Not started", "effortMinutes": null, "weight": 5, "priority": "Medium" },
+    { "id": "a9", "title": "Online homework 8.3", "courseId": "c-calc", "dueOffsetDays": 3, "status": "Not started", "effortMinutes": 40, "weight": 1, "priority": "Low" },
+    { "id": "a10", "title": "Discussion post: Bismarck", "courseId": "c-hist", "dueOffsetDays": -2, "status": "Not started", "effortMinutes": 30, "weight": null, "priority": "Low" },
+    { "id": "a11", "title": "Chapter 9 flashcards", "courseId": "c-bio", "dueOffsetDays": 9, "status": "Not started", "effortMinutes": null, "weight": null, "priority": null },
+    { "id": "a12", "title": "Reading: CLRS ch. 11", "courseId": "c-cs", "dueOffsetDays": 2, "status": "Done", "effortMinutes": 60, "weight": 1, "priority": "Low" }
+  ]
+}
