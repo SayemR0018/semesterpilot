@@ -24,3 +24,6 @@ export type LoadResult = {
   today: string;
   warnings: string[];
 };
+
+export type CoachStep = { assignmentId: string; firstStep: string };
+export type CoachResult = { headline: string; briefing: string; steps: CoachStep[]; watchOut: string };
