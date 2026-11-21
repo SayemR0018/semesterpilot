@@ -1,5 +1,6 @@
 import "server-only";
 import sample from "@/data/sample.json";
+import { describeNotionError, loadNotionAssignments } from "./notion";
 import { addDays } from "./scoring";
 import type { Assignment, LoadResult } from "./types";
 
@@ -29,5 +30,12 @@ export function loadMockAssignments(today: string): Assignment[] {
 
 export async function loadAssignments(): Promise<LoadResult> {
   const today = todayISO();
-  return { mode: "mock", assignments: loadMockAssignments(today), today, warnings: [] };
+  if (isMockMode()) return { mode: "mock", assignments: loadMockAssignments(today), today, warnings: [] };
+  try {
+    const { assignments, warnings } = await loadNotionAssignments();
+    return { mode: "notion", assignments, today, warnings };
+  } catch (err) {
+    const { error, hint } = describeNotionError(err);
+    throw new Error(hint ? `${error} ${hint}` : error);
+  }
 }

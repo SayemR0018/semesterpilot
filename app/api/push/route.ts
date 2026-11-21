@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isMockMode, loadAssignments } from "@/lib/data";
+import { describeNotionError, pushPlanToNotion } from "@/lib/notion";
 import { buildPlan, planToMarkdown, rankAssignments } from "@/lib/scoring";
 
 export async function POST(req: Request) {
@@ -12,14 +13,11 @@ export async function POST(req: Request) {
     const title = `SemesterPilot Plan - ${data.today}`;
     const markdown = planToMarkdown(plan, data.today);
     if (isMockMode()) return NextResponse.json({ ok: true, mode: "mock", title, markdown });
-    return NextResponse.json({ ok: false, error: "Notion write-back not implemented yet" }, { status: 501 });
+    const result = await pushPlanToNotion(plan, title, markdown, data.today);
+    return NextResponse.json({ ok: true, mode: "notion", title, ...result });
   } catch (err) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-        hint: "Make sure NOTION_API_KEY is valid and your databases are shared with the integration.",
-      },
+      { ok: false, ...describeNotionError(err) },
       { status: 500 },
     );
   }
